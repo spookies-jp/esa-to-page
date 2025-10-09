@@ -1,9 +1,59 @@
+import { cache } from 'react';
 import { notFound } from 'next/navigation';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { getArticleBySlug } from '@/lib/db';
 import { getCachedArticle, setCachedArticle, setCachedArticleMetadata } from '@/lib/cache';
 import { createEsaApiClient } from '@/lib/esa-api';
 import ArticleRenderer from '@/components/ArticleRenderer';
+
+const getArticleData = cache(async (slug: string) => {
+  const { env } = getCloudflareContext();
+
+  if (!env.DB || !env.KV) {
+    throw new Error('Missing database or KV binding');
+  }
+
+  const article = await getArticleBySlug(env.DB, slug);
+  if (!article) {
+    return {
+      article: null,
+      esaPost: null,
+    };
+  }
+
+  let esaPost = await getCachedArticle(env.KV, article.workspace, article.esa_post_id);
+
+  if (!esaPost) {
+    try {
+      const client = createEsaApiClient(env.ESA_ACCESS_TOKEN, article.workspace);
+      esaPost = await client.getPost(article.esa_post_id);
+
+      // Log the fetched data for debugging
+      console.log('Fetched esa post:', {
+        number: esaPost.number,
+        name: esaPost.name,
+        hasUser: !!esaPost.user,
+        userIcon: esaPost.user?.icon,
+      });
+
+      await setCachedArticle(env.KV, article.workspace, article.esa_post_id, esaPost);
+      await setCachedArticleMetadata(env.KV, article.workspace, article.esa_post_id, esaPost);
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Resource not found') {
+        return {
+          article,
+          esaPost: null,
+        };
+      }
+      throw error;
+    }
+  }
+
+  return {
+    article,
+    esaPost,
+  };
+});
 
 export const revalidate = 3600;
 
@@ -39,65 +89,40 @@ export default async function ArticlePage({ params }: PageProps) {
     );
   }
   
-  const article = await getArticleBySlug(env.DB, slug);
-  if (!article) {
-    notFound();
-  }
+  const { article, esaPost } = await getArticleData(slug);
 
-  let esaPost = await getCachedArticle(env.KV, article.workspace, article.esa_post_id);
-  
-  if (!esaPost) {
-    try {
-      const client = createEsaApiClient(env.ESA_ACCESS_TOKEN, article.workspace);
-      esaPost = await client.getPost(article.esa_post_id);
-      
-      // Log the fetched data for debugging
-      console.log('Fetched esa post:', {
-        number: esaPost.number,
-        name: esaPost.name,
-        hasUser: !!esaPost.user,
-        userIcon: esaPost.user?.icon,
-      });
-      
-      await setCachedArticle(env.KV, article.workspace, article.esa_post_id, esaPost);
-      await setCachedArticleMetadata(env.KV, article.workspace, article.esa_post_id, esaPost);
-    } catch (error) {
-      if (error instanceof Error && error.message === 'Resource not found') {
-        notFound();
-      }
-      throw error;
-    }
+  if (!article || !esaPost) {
+    notFound();
   }
 
   return <ArticleRenderer article={esaPost} />;
 }
 
 export async function generateMetadata({ params }: PageProps) {
-  const { env } = getCloudflareContext();
   const { slug } = await params;
   
-  const article = await getArticleBySlug(env.DB, slug);
-  if (!article) {
-    return {
-      title: 'Not Found',
-    };
-  }
+  try {
+    const { article, esaPost } = await getArticleData(slug);
 
-  let esaPost = await getCachedArticle(env.KV, article.workspace, article.esa_post_id);
-  
-  if (!esaPost) {
-    try {
-      const client = createEsaApiClient(env.ESA_ACCESS_TOKEN, article.workspace);
-      esaPost = await client.getPost(article.esa_post_id);
-    } catch {
+    if (!article) {
+      return {
+        title: 'Not Found',
+      };
+    }
+
+    if (!esaPost) {
       return {
         title: article.slug,
       };
     }
-  }
 
-  return {
-    title: esaPost.name,
-    description: esaPost.body_md.slice(0, 160) + '...',
-  };
+    return {
+      title: esaPost.name,
+      description: esaPost.body_md.slice(0, 160) + '...',
+    };
+  } catch {
+    return {
+      title: slug,
+    };
+  }
 }

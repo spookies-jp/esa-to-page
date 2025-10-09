@@ -75,8 +75,10 @@ export async function invalidateCache(
   workspace: string,
   postId: number
 ): Promise<void> {
-  const key = getCacheKey(workspace, postId);
-  await kv.delete(key);
+  const articleKey = getCacheKey(workspace, postId);
+  const metadataKey = getMetadataCacheKey(workspace, postId);
+  await kv.delete(articleKey);
+  await kv.delete(metadataKey);
 }
 
 export async function deleteCachedArticle(
@@ -84,6 +86,8 @@ export async function deleteCachedArticle(
   workspace: string,
   postId: number
 ): Promise<void> {
-  const key = getCacheKey(workspace, postId);
-  await kv.delete(key);
+  const articleKey = getCacheKey(workspace, postId);
+  const metadataKey = getMetadataCacheKey(workspace, postId);
+  await kv.delete(articleKey);
+  await kv.delete(metadataKey);
 }

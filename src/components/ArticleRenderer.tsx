@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useMemo } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { EsaPost } from '@/types/esa';
 import Image from 'next/image';
 import Header from './Header';
@@ -97,13 +97,14 @@ export default function ArticleRenderer({ article }: ArticleRendererProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const addedStylesRef = useRef<HTMLStyleElement[]>([]);
   const addedScriptsRef = useRef<HTMLScriptElement[]>([]);
-
-  // Check if article contains code blocks
-  const hasCodeBlocks = article.body_html.includes('<code') || article.body_html.includes('<pre');
+  const [hasCodeBlocks, setHasCodeBlocks] = useState(false);
 
   useEffect(() => {
     if (!contentRef.current) return;
     if (typeof document === 'undefined') return;
+
+    // Check if article contains code blocks (client-side only)
+    setHasCodeBlocks(article.body_html.includes('<code') || article.body_html.includes('<pre'));
 
     // Parse HTML and extract styles/scripts on client side only
     const tempDiv = document.createElement('div');

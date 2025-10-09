@@ -6,7 +6,7 @@ import Footer from '@/components/Footer';
 import ArticleCard from '@/components/ArticleCard';
 import { Icons } from '@/components/Icons';
 
-export const revalidate = 3600;
+// Cloudflare Workers requires force-dynamic for edge runtime
 export const dynamic = 'force-dynamic';
 
 export default async function Home() {

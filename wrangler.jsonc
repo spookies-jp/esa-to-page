@@ -40,7 +40,8 @@
 		{
 			"binding": "DB",
 			"database_name": "esa-to-page",
-			"database_id": "ce40f8d9-3884-43fa-9528-a3bff692ca79"
+			"database_id": "ce40f8d9-3884-43fa-9528-a3bff692ca79",
+            "experimental_remote": true
 		}
 	],
 
@@ -51,7 +52,8 @@
 	"kv_namespaces": [
 		{
 			"binding": "KV",
-			"id": "e6a4e61e1ffe4943b965f447256d6e0d"
+			"id": "e6a4e61e1ffe4943b965f447256d6e0d",
+            "experimental_remote": true
 		}
 	],
 

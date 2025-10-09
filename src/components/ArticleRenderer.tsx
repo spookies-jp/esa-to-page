@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useMemo } from 'react';
 import { EsaPost } from '@/types/esa';
 import Image from 'next/image';
 import Header from './Header';
@@ -101,40 +101,42 @@ export default function ArticleRenderer({ article }: ArticleRendererProps) {
   // Check if article contains code blocks
   const hasCodeBlocks = article.body_html.includes('<code') || article.body_html.includes('<pre');
 
-  useEffect(() => {
-    if (!contentRef.current) return;
-
-    // Create a temporary container to parse the HTML
+  // Parse HTML and extract styles/scripts only once
+  const { cleanHTML, styles, scripts } = useMemo(() => {
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = article.body_html;
 
-    // Extract and handle style tags
-    const styleTags = tempDiv.querySelectorAll('style');
-    styleTags.forEach((styleTag) => {
+    // Extract style tags
+    const styleElements = tempDiv.querySelectorAll('style');
+    const extractedStyles: Array<{ content: string; id?: string }> = [];
+
+    styleElements.forEach((styleTag) => {
       const originalCSS = styleTag.textContent || '';
       const scopedCSS = scopeCSS(originalCSS, '.article-content');
 
-      const newStyle = document.createElement('style');
-      newStyle.textContent = scopedCSS;
-      if (styleTag.id) newStyle.id = styleTag.id;
+      extractedStyles.push({
+        content: scopedCSS,
+        id: styleTag.id || undefined,
+      });
 
-      // Debug: log the scoped CSS
-      console.log('Original CSS length:', originalCSS.length);
-      console.log('Scoped CSS length:', scopedCSS.length);
-      console.log('First 500 chars of scoped CSS:', scopedCSS.substring(0, 500));
-
-      document.head.appendChild(newStyle);
-      addedStylesRef.current.push(newStyle);
       styleTag.remove();
     });
 
-    // Extract and handle script tags
-    const scriptTags = tempDiv.querySelectorAll('script');
-    const scriptsToExecute: Array<{ src?: string; content?: string; attributes: Record<string, string> }> = [];
+    // Extract script tags
+    const scriptElements = tempDiv.querySelectorAll('script');
+    const extractedScripts: Array<{
+      src?: string;
+      content?: string;
+      attributes: Record<string, string>;
+    }> = [];
 
-    scriptTags.forEach((scriptTag) => {
-      const scriptInfo: { src?: string; content?: string; attributes: Record<string, string> } = {
-        attributes: {}
+    scriptElements.forEach((scriptTag) => {
+      const scriptInfo: {
+        src?: string;
+        content?: string;
+        attributes: Record<string, string>;
+      } = {
+        attributes: {},
       };
 
       // Copy attributes
@@ -148,15 +150,35 @@ export default function ArticleRenderer({ article }: ArticleRendererProps) {
         scriptInfo.content = scriptTag.textContent || '';
       }
 
-      scriptsToExecute.push(scriptInfo);
+      extractedScripts.push(scriptInfo);
       scriptTag.remove();
     });
 
-    // Set the remaining HTML content
-    contentRef.current.innerHTML = tempDiv.innerHTML;
+    return {
+      cleanHTML: tempDiv.innerHTML,
+      styles: extractedStyles,
+      scripts: extractedScripts,
+    };
+  }, [article.body_html]);
 
-    // Execute scripts sequentially
-    scriptsToExecute.forEach((scriptInfo) => {
+  useEffect(() => {
+    if (!contentRef.current) return;
+
+    // Set the HTML content
+    contentRef.current.innerHTML = cleanHTML;
+
+    // Add styles to document head
+    styles.forEach((style) => {
+      const newStyle = document.createElement('style');
+      newStyle.textContent = style.content;
+      if (style.id) newStyle.id = style.id;
+
+      document.head.appendChild(newStyle);
+      addedStylesRef.current.push(newStyle);
+    });
+
+    // Execute scripts
+    scripts.forEach((scriptInfo) => {
       const newScript = document.createElement('script');
 
       // Set attributes
@@ -188,14 +210,14 @@ export default function ArticleRenderer({ article }: ArticleRendererProps) {
       });
       addedScriptsRef.current = [];
     };
-  }, [article.body_html]);
+  }, [cleanHTML, styles, scripts]);
 
   return (
     <>
       {hasCodeBlocks && <CodeFontLoader />}
       <Header />
       <div className="flex-1 bg-background">
-      <article className="container mx-auto px-4 py-8 md:py-12 max-w-4xl">
+      <article className="container mx-auto px-4 py-8 md:py-12 max-w-5xl">
         <header className="mb-12">
           <h1 className="text-3xl md:text-5xl font-bold text-foreground mb-6 leading-tight">
             {article.name}

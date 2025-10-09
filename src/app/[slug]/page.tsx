@@ -55,7 +55,8 @@ const getArticleData = cache(async (slug: string) => {
   };
 });
 
-export const revalidate = 3600;
+// Cloudflare Workers requires force-dynamic for edge runtime
+// Rely on KV cache (24h TTL) for performance
 export const dynamic = 'force-dynamic';
 
 interface PageProps {

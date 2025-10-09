@@ -1,0 +1,6 @@
+- `npm run dev`: start Next.js dev server (no D1/KV access locally).
+- `npm run preview`: build with opennextjs-cloudflare and preview in Cloudflare sandbox.
+- `npm run check`: run production build then TypeScript check.
+- `npm run lint`: run Next.js lint rules.
+- `npm run deploy`: build via OpenNext and deploy to Cloudflare Workers with schema migration.
+- `npm run build`: production Next.js build.

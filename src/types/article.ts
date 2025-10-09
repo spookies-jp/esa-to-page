@@ -6,6 +6,10 @@ export interface PublishedArticle {
   esa_url: string;
   created_at: string;
   updated_at: string;
+  title?: string;
+  excerpt?: string;
+  tags?: string[];
+  category?: string;
 }
 
 export interface CreateArticleInput {

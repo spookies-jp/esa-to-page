@@ -1,11 +1,12 @@
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { getAllArticles } from '@/lib/db';
+import { getCachedArticleMetadata } from '@/lib/cache';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import ArticleCard from '@/components/ArticleCard';
 import { Icons } from '@/components/Icons';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 3600;
 
 export default async function Home() {
   const { env } = getCloudflareContext();
@@ -46,6 +47,17 @@ export default async function Home() {
   }
   
   const articles = await getAllArticles(env.DB);
+  const articlesWithMetadata = await Promise.all(
+    articles.map(async (article) => {
+      const metadata = await getCachedArticleMetadata(
+        env.KV,
+        article.workspace,
+        article.esa_post_id
+      );
+
+      return metadata ? { ...article, ...metadata } : article;
+    })
+  );
 
   return (
     <>
@@ -62,7 +74,7 @@ export default async function Home() {
           </header>
 
         <main>
-          {articles.length === 0 ? (
+          {articlesWithMetadata.length === 0 ? (
             <div className="bg-card rounded-xl shadow-lg border border-border p-8 md:p-12 text-center">
               <div className="max-w-md mx-auto">
                 {Icons.book}
@@ -73,7 +85,7 @@ export default async function Home() {
             </div>
           ) : (
             <div className="grid gap-4">
-              {articles.map((article) => (
+              {articlesWithMetadata.map((article) => (
                 <ArticleCard key={article.id} article={article} />
               ))}
             </div>

@@ -1,11 +1,11 @@
 import { notFound } from 'next/navigation';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { getArticleBySlug } from '@/lib/db';
-import { getCachedArticle, setCachedArticle } from '@/lib/cache';
+import { getCachedArticle, setCachedArticle, setCachedArticleMetadata } from '@/lib/cache';
 import { createEsaApiClient } from '@/lib/esa-api';
 import ArticleRenderer from '@/components/ArticleRenderer';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 3600;
 
 interface PageProps {
   params: Promise<{
@@ -60,6 +60,7 @@ export default async function ArticlePage({ params }: PageProps) {
       });
       
       await setCachedArticle(env.KV, article.workspace, article.esa_post_id, esaPost);
+      await setCachedArticleMetadata(env.KV, article.workspace, article.esa_post_id, esaPost);
     } catch (error) {
       if (error instanceof Error && error.message === 'Resource not found') {
         notFound();

@@ -1,0 +1,4 @@
+- Next.js 15 app for publishing selected esa.io articles via Cloudflare Workers.
+- Uses Cloudflare D1 for persistence and KV for cached article metadata/content.
+- App Router structure with admin dashboard, API routes, and slug-based article pages.
+- TypeScript throughout with Tailwind CSS for styling via app directory components.

@@ -1,0 +1,4 @@
+- TypeScript with strict compiler settings; prefer typed async/await patterns.
+- Next.js App Router conventions; default exports for page components and server actions.
+- Tailwind CSS utility classes for styling; keep JSX concise.
+- ESLint via next/core-web-vitals + next/typescript; follow React 19 functional component patterns.

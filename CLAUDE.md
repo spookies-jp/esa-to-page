@@ -189,3 +189,15 @@ Use preview mode (`npm run preview`) for full functionality with local Cloudflar
 - **OAuth redirect fails**: Check callback URL configuration
 - **Articles not updating**: Clear KV cache or use refresh button
 - **Build fails**: Run `npm run check` for TypeScript errors
+
+# Important Notes 
+If Codex MCP is available in your environment, use it when proceeding with the actual implementation.
+As an option,
+use Codex MCP with
+`workspace-write` for the workspace
+and `never` for the approval policy.
+Also, break tasks assigned to Codex into smaller pieces and submit them individually to make progress easier to track.
+Furthermore, when issuing instructions to Codex, do so in English.
+On top of that, have Codex handle Git commits as well.
+
+Translated with DeepL.com (free version)

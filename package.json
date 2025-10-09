@@ -38,8 +38,10 @@
     "check": "npm run build && tsc",
     "deploy": "opennextjs-cloudflare build && wrangler d1 execute esa-to-page --file=./schema.sql && opennextjs-cloudflare deploy",
     "dev": "next dev",
+    "dev:remote": "opennextjs-cloudflare build && wrangler dev --remote",
     "lint": "next lint",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "preview:remote": "opennextjs-cloudflare build && wrangler dev --remote",
     "start": "next start"
   }
 }

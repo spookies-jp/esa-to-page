@@ -199,5 +199,3 @@ and `never` for the approval policy.
 Also, break tasks assigned to Codex into smaller pieces and submit them individually to make progress easier to track.
 Furthermore, when issuing instructions to Codex, do so in English.
 On top of that, have Codex handle Git commits as well.
-
-Translated with DeepL.com (free version)

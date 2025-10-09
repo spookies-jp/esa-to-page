@@ -1,3 +1,0 @@
-- Ensure relevant npm scripts (`npm run lint`, `npm run check`) pass before finalizing changes.
-- For deployment changes, confirm KV/D1 bindings and schema are up to date.
-- Summarize updates and suggest running preview or deploy when touching Cloudflare-specific flows.

@@ -34,7 +34,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
     
     const existingArticle = await getArticleById(env.DB, id);
     if (existingArticle) {
-      await invalidateCache(env.KV, existingArticle.workspace, existingArticle.esa_post_id);
+      await invalidateCache(env.KV, existingArticle.slug);
     }
 
     const article = await updateArticle(env.DB, id, body);
@@ -74,7 +74,7 @@ export async function DELETE(request: Request, { params }: RouteParams) {
     
     const article = await getArticleById(env.DB, id);
     if (article) {
-      await invalidateCache(env.KV, article.workspace, article.esa_post_id);
+      await invalidateCache(env.KV, article.slug);
     }
 
     await deleteArticle(env.DB, id);

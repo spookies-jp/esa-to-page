@@ -101,8 +101,11 @@ export default function ArticleRenderer({ article }: ArticleRendererProps) {
   // Check if article contains code blocks
   const hasCodeBlocks = article.body_html.includes('<code') || article.body_html.includes('<pre');
 
-  // Parse HTML and extract styles/scripts only once
-  const { cleanHTML, styles, scripts } = useMemo(() => {
+  useEffect(() => {
+    if (!contentRef.current) return;
+    if (typeof document === 'undefined') return;
+
+    // Parse HTML and extract styles/scripts on client side only
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = article.body_html;
 
@@ -154,21 +157,11 @@ export default function ArticleRenderer({ article }: ArticleRendererProps) {
       scriptTag.remove();
     });
 
-    return {
-      cleanHTML: tempDiv.innerHTML,
-      styles: extractedStyles,
-      scripts: extractedScripts,
-    };
-  }, [article.body_html]);
-
-  useEffect(() => {
-    if (!contentRef.current) return;
-
     // Set the HTML content
-    contentRef.current.innerHTML = cleanHTML;
+    contentRef.current.innerHTML = tempDiv.innerHTML;
 
     // Add styles to document head
-    styles.forEach((style) => {
+    extractedStyles.forEach((style) => {
       const newStyle = document.createElement('style');
       newStyle.textContent = style.content;
       if (style.id) newStyle.id = style.id;
@@ -178,7 +171,7 @@ export default function ArticleRenderer({ article }: ArticleRendererProps) {
     });
 
     // Execute scripts
-    scripts.forEach((scriptInfo) => {
+    extractedScripts.forEach((scriptInfo) => {
       const newScript = document.createElement('script');
 
       // Set attributes
@@ -210,7 +203,7 @@ export default function ArticleRenderer({ article }: ArticleRendererProps) {
       });
       addedScriptsRef.current = [];
     };
-  }, [cleanHTML, styles, scripts]);
+  }, [article.body_html]);
 
   return (
     <>

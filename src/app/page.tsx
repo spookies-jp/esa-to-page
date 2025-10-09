@@ -60,11 +60,7 @@ export default async function Home() {
     const articles = await getAllArticles(env.DB);
     articlesWithMetadata = await Promise.all(
       articles.map(async (article) => {
-        const metadata = await getCachedArticleMetadata(
-          env.KV,
-          article.workspace,
-          article.esa_post_id
-        );
+        const metadata = await getCachedArticleMetadata(env.KV, article.slug);
 
         return metadata ? {
           ...article,

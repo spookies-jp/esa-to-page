@@ -7,9 +7,10 @@ import ArticleCard from '@/components/ArticleCard';
 import { Icons } from '@/components/Icons';
 
 export const revalidate = 3600;
+export const dynamic = 'force-dynamic';
 
 export default async function Home() {
-  const { env } = getCloudflareContext();
+  const { env } = await getCloudflareContext({ async: true });
   
   // In development, we can't access D1, so return empty array
   if (!env.DB) {

@@ -7,7 +7,7 @@ import { createEsaApiClient } from '@/lib/esa-api';
 import ArticleRenderer from '@/components/ArticleRenderer';
 
 const getArticleData = cache(async (slug: string) => {
-  const { env } = getCloudflareContext();
+  const { env } = await getCloudflareContext({ async: true });
 
   if (!env.DB || !env.KV) {
     throw new Error('Missing database or KV binding');
@@ -56,6 +56,7 @@ const getArticleData = cache(async (slug: string) => {
 });
 
 export const revalidate = 3600;
+export const dynamic = 'force-dynamic';
 
 interface PageProps {
   params: Promise<{
@@ -64,7 +65,7 @@ interface PageProps {
 }
 
 export default async function ArticlePage({ params }: PageProps) {
-  const { env } = getCloudflareContext();
+  const { env } = await getCloudflareContext({ async: true });
   const { slug } = await params;
   
   // In development, show error message

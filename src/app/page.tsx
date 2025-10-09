@@ -1,6 +1,11 @@
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { getAllArticles } from '@/lib/db';
-import { getCachedArticleMetadata } from '@/lib/cache';
+import {
+  getCachedArticleMetadata,
+  getCachedArticleList,
+  setCachedArticleList,
+  type ArticleListItem
+} from '@/lib/cache';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import ArticleCard from '@/components/ArticleCard';
@@ -11,9 +16,9 @@ export const dynamic = 'force-dynamic';
 
 export default async function Home() {
   const { env } = await getCloudflareContext({ async: true });
-  
+
   // In development, we can't access D1, so return empty array
-  if (!env.DB) {
+  if (!env.DB || !env.KV) {
     return (
       <>
         <Header />
@@ -46,19 +51,35 @@ export default async function Home() {
       </>
     );
   }
-  
-  const articles = await getAllArticles(env.DB);
-  const articlesWithMetadata = await Promise.all(
-    articles.map(async (article) => {
-      const metadata = await getCachedArticleMetadata(
-        env.KV,
-        article.workspace,
-        article.esa_post_id
-      );
 
-      return metadata ? { ...article, ...metadata } : article;
-    })
-  );
+  // Try to get cached article list first
+  let articlesWithMetadata = await getCachedArticleList(env.KV);
+
+  // If not cached, fetch from D1 and cache it
+  if (!articlesWithMetadata) {
+    const articles = await getAllArticles(env.DB);
+    articlesWithMetadata = await Promise.all(
+      articles.map(async (article) => {
+        const metadata = await getCachedArticleMetadata(
+          env.KV,
+          article.workspace,
+          article.esa_post_id
+        );
+
+        return metadata ? {
+          ...article,
+          title: metadata.title,
+          excerpt: metadata.excerpt,
+          tags: metadata.tags,
+          category: metadata.category,
+          article_updated_at: metadata.updated_at
+        } : article;
+      })
+    );
+
+    // Cache the result
+    await setCachedArticleList(env.KV, articlesWithMetadata);
+  }
 
   return (
     <>

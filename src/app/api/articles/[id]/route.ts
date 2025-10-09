@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { requireAuth } from '@/lib/auth';
 import { updateArticle, deleteArticle, getArticleById } from '@/lib/db';
-import { invalidateCache } from '@/lib/cache';
+import { invalidateCache, invalidateArticleListCache } from '@/lib/cache';
 import { UpdateArticleInput } from '@/types/article';
 
 interface RouteParams {
@@ -36,8 +36,12 @@ export async function PUT(request: Request, { params }: RouteParams) {
     if (existingArticle) {
       await invalidateCache(env.KV, existingArticle.workspace, existingArticle.esa_post_id);
     }
-    
+
     const article = await updateArticle(env.DB, id, body);
+
+    // Invalidate article list cache
+    await invalidateArticleListCache(env.KV);
+
     return NextResponse.json({ success: true, article });
   } catch (error) {
     if (error instanceof Error) {
@@ -72,8 +76,12 @@ export async function DELETE(request: Request, { params }: RouteParams) {
     if (article) {
       await invalidateCache(env.KV, article.workspace, article.esa_post_id);
     }
-    
+
     await deleteArticle(env.DB, id);
+
+    // Invalidate article list cache
+    await invalidateArticleListCache(env.KV);
+
     return NextResponse.json({ success: true });
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {

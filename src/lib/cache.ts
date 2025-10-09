@@ -1,6 +1,7 @@
 import { EsaPost } from '@/types/esa';
 
 const CACHE_TTL = 24 * 60 * 60; // 24 hours in seconds
+const ARTICLE_LIST_CACHE_TTL = 60 * 60; // 1 hour for article list
 
 export type ArticleMetadata = {
   title: string;
@@ -8,6 +9,21 @@ export type ArticleMetadata = {
   tags: string[];
   category: string;
   updated_at: string;
+};
+
+export type ArticleListItem = {
+  id: number;
+  slug: string;
+  esa_post_id: number;
+  workspace: string;
+  esa_url: string;
+  created_at: string;
+  updated_at: string;
+  title?: string;
+  excerpt?: string;
+  tags?: string[];
+  category?: string;
+  article_updated_at?: string;
 };
 
 export function getCacheKey(workspace: string, postId: number): string {
@@ -90,4 +106,29 @@ export async function deleteCachedArticle(
   const metadataKey = getMetadataCacheKey(workspace, postId);
   await kv.delete(articleKey);
   await kv.delete(metadataKey);
+}
+
+// Article list caching
+const ARTICLE_LIST_CACHE_KEY = 'article_list_with_metadata';
+
+export async function getCachedArticleList(
+  kv: KVNamespace
+): Promise<ArticleListItem[] | null> {
+  const cached = await kv.get(ARTICLE_LIST_CACHE_KEY, 'json');
+  return cached as ArticleListItem[] | null;
+}
+
+export async function setCachedArticleList(
+  kv: KVNamespace,
+  articles: ArticleListItem[]
+): Promise<void> {
+  await kv.put(ARTICLE_LIST_CACHE_KEY, JSON.stringify(articles), {
+    expirationTtl: ARTICLE_LIST_CACHE_TTL
+  });
+}
+
+export async function invalidateArticleListCache(
+  kv: KVNamespace
+): Promise<void> {
+  await kv.delete(ARTICLE_LIST_CACHE_KEY);
 }

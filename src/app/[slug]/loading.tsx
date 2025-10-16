@@ -1,7 +1,7 @@
 export default function Loading() {
   return (
     <div className="min-h-screen bg-background">
-      <article className="container mx-auto px-4 py-8 md:py-12 max-w-4xl">
+      <article className="container mx-auto px-4 py-8 md:py-12 max-w-5xl">
         <header className="mb-12">
           <div className="h-10 md:h-14 bg-muted rounded-lg mb-6 skeleton max-w-3xl"></div>
           

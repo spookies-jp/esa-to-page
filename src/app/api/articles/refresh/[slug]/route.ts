@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { getArticleBySlug } from '@/lib/db';
-import { deleteCachedArticle, setCachedArticle } from '@/lib/cache';
+import { deleteCachedArticle, setCachedArticle, setCachedArticleMetadata, invalidateArticleListCache } from '@/lib/cache';
 import { createEsaApiClient } from '@/lib/esa-api';
 
 export async function POST(
@@ -30,16 +30,20 @@ export async function POST(
     }
 
     // Delete existing cache
-    await deleteCachedArticle(env.KV, article.workspace, article.esa_post_id);
+    await deleteCachedArticle(env.KV, slug);
 
     // Fetch fresh data from esa
     const client = createEsaApiClient(env.ESA_ACCESS_TOKEN, article.workspace);
     const esaPost = await client.getPost(article.esa_post_id);
 
     // Cache the fresh data
-    await setCachedArticle(env.KV, article.workspace, article.esa_post_id, esaPost);
+    await setCachedArticle(env.KV, slug, esaPost);
+    await setCachedArticleMetadata(env.KV, slug, esaPost, article.workspace, article.esa_post_id);
 
-    return Response.json({ 
+    // Invalidate article list cache
+    await invalidateArticleListCache(env.KV);
+
+    return Response.json({
       success: true,
       message: 'Cache refreshed successfully'
     });

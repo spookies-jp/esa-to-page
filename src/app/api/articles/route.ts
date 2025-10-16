@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { requireAuth } from '@/lib/auth';
 import { createArticle, getAllArticles } from '@/lib/db';
+import { invalidateArticleListCache } from '@/lib/cache';
 import { CreateArticleInput } from '@/types/article';
 
 export async function GET() {
@@ -42,6 +43,10 @@ export async function POST(request: Request) {
     }
     
     const article = await createArticle(env.DB, body);
+
+    // Invalidate article list cache
+    await invalidateArticleListCache(env.KV);
+
     return NextResponse.json({ success: true, article });
   } catch (error) {
     if (error instanceof Error) {

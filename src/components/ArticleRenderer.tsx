@@ -1,3 +1,6 @@
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
 import { EsaPost } from '@/types/esa';
 import Image from 'next/image';
 import Header from './Header';
@@ -8,16 +11,207 @@ interface ArticleRendererProps {
   article: EsaPost;
 }
 
+// CSS scoping with proper bracket matching
+function scopeCSS(css: string, scope: string): string {
+  // Replace :root with scope
+  css = css.replace(/:root(?=\s*\{)/g, scope);
+
+  const addScopeToSelector = (selector: string): string => {
+    return selector
+      .split(',')
+      .map((sel) => {
+        sel = sel.trim();
+        if (!sel) return '';
+        if (sel.includes(scope)) return sel;
+        if (/^(from|to|\d+%|100%)$/.test(sel)) return sel;
+        return `${scope} ${sel}`;
+      })
+      .filter(Boolean)
+      .join(', ');
+  };
+
+  const processCSS = (input: string, depth = 0): string => {
+    let result = '';
+    let i = 0;
+    let selector = '';
+
+    while (i < input.length) {
+      const char = input[i];
+
+      if (char === '{') {
+        const currentSelector = selector.trim();
+        selector = '';
+
+        // Find matching closing brace
+        let braceCount = 1;
+        let j = i + 1;
+        let content = '';
+
+        while (j < input.length && braceCount > 0) {
+          if (input[j] === '{') braceCount++;
+          else if (input[j] === '}') braceCount--;
+
+          if (braceCount > 0) {
+            content += input[j];
+          }
+          j++;
+        }
+
+        // Check what kind of rule this is
+        if (currentSelector.startsWith('@keyframes') || currentSelector.startsWith('@font-face')) {
+          // Don't scope these
+          result += `${currentSelector} { ${content} }`;
+        } else if (currentSelector.startsWith('@media') || currentSelector.startsWith('@supports')) {
+          // Recursively process content
+          const processedContent = processCSS(content, depth + 1);
+          result += `${currentSelector} { ${processedContent} }`;
+        } else if (currentSelector.startsWith('@')) {
+          // Other @-rules, keep as-is
+          result += `${currentSelector} { ${content} }`;
+        } else {
+          // Regular selector - scope it
+          const scopedSelector = addScopeToSelector(currentSelector);
+          result += `${scopedSelector} { ${content} }`;
+        }
+
+        i = j;
+        continue;
+      }
+
+      selector += char;
+      i++;
+    }
+
+    // Add any remaining content
+    if (selector.trim()) {
+      result += selector;
+    }
+
+    return result;
+  };
+
+  return processCSS(css);
+}
+
 export default function ArticleRenderer({ article }: ArticleRendererProps) {
-  // Check if article contains code blocks
-  const hasCodeBlocks = article.body_html.includes('<code') || article.body_html.includes('<pre');
-  
+  const contentRef = useRef<HTMLDivElement>(null);
+  const addedStylesRef = useRef<HTMLStyleElement[]>([]);
+  const addedScriptsRef = useRef<HTMLScriptElement[]>([]);
+  const [hasCodeBlocks, setHasCodeBlocks] = useState(false);
+
+  useEffect(() => {
+    if (!contentRef.current) return;
+    if (typeof document === 'undefined') return;
+
+    // Check if article contains code blocks (client-side only)
+    setHasCodeBlocks(article.body_html.includes('<code') || article.body_html.includes('<pre'));
+
+    // Parse HTML and extract styles/scripts on client side only
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = article.body_html;
+
+    // Extract style tags
+    const styleElements = tempDiv.querySelectorAll('style');
+    const extractedStyles: Array<{ content: string; id?: string }> = [];
+
+    styleElements.forEach((styleTag) => {
+      const originalCSS = styleTag.textContent || '';
+      const scopedCSS = scopeCSS(originalCSS, '.article-content');
+
+      extractedStyles.push({
+        content: scopedCSS,
+        id: styleTag.id || undefined,
+      });
+
+      styleTag.remove();
+    });
+
+    // Extract script tags
+    const scriptElements = tempDiv.querySelectorAll('script');
+    const extractedScripts: Array<{
+      src?: string;
+      content?: string;
+      attributes: Record<string, string>;
+    }> = [];
+
+    scriptElements.forEach((scriptTag) => {
+      const scriptInfo: {
+        src?: string;
+        content?: string;
+        attributes: Record<string, string>;
+      } = {
+        attributes: {},
+      };
+
+      // Copy attributes
+      Array.from(scriptTag.attributes).forEach((attr) => {
+        scriptInfo.attributes[attr.name] = attr.value;
+      });
+
+      if (scriptTag.src) {
+        scriptInfo.src = scriptTag.src;
+      } else {
+        scriptInfo.content = scriptTag.textContent || '';
+      }
+
+      extractedScripts.push(scriptInfo);
+      scriptTag.remove();
+    });
+
+    // Set the HTML content
+    contentRef.current.innerHTML = tempDiv.innerHTML;
+
+    // Add styles to document head
+    extractedStyles.forEach((style) => {
+      const newStyle = document.createElement('style');
+      newStyle.textContent = style.content;
+      if (style.id) newStyle.id = style.id;
+
+      document.head.appendChild(newStyle);
+      addedStylesRef.current.push(newStyle);
+    });
+
+    // Execute scripts
+    extractedScripts.forEach((scriptInfo) => {
+      const newScript = document.createElement('script');
+
+      // Set attributes
+      Object.entries(scriptInfo.attributes).forEach(([key, value]) => {
+        newScript.setAttribute(key, value);
+      });
+
+      if (scriptInfo.src) {
+        newScript.src = scriptInfo.src;
+      } else if (scriptInfo.content) {
+        newScript.textContent = scriptInfo.content;
+      }
+
+      document.body.appendChild(newScript);
+      addedScriptsRef.current.push(newScript);
+    });
+
+    // Cleanup function to remove added styles and scripts
+    return () => {
+      // Remove style tags added by this component
+      addedStylesRef.current.forEach((style) => {
+        style.remove();
+      });
+      addedStylesRef.current = [];
+
+      // Remove script tags added by this component
+      addedScriptsRef.current.forEach((script) => {
+        script.remove();
+      });
+      addedScriptsRef.current = [];
+    };
+  }, [article.body_html]);
+
   return (
     <>
       {hasCodeBlocks && <CodeFontLoader />}
       <Header />
       <div className="flex-1 bg-background">
-      <article className="container mx-auto px-4 py-8 md:py-12 max-w-4xl">
+      <article className="container mx-auto px-4 py-8 md:py-12 max-w-5xl">
         <header className="mb-12">
           <h1 className="text-3xl md:text-5xl font-bold text-foreground mb-6 leading-tight">
             {article.name}
@@ -88,7 +282,7 @@ export default function ArticleRenderer({ article }: ArticleRendererProps) {
           )}
         </header>
           <div className="bg-card rounded-xl p-6 md:p-10 shadow-sm border border-border mb-8">
-            <div className="article-content" dangerouslySetInnerHTML={{ __html: article.body_html }} />
+            <div className="article-content" ref={contentRef} />
           </div>
         <footer className="pt-8 border-t border-border">
           <p className="text-sm text-muted-foreground text-center">Powered by esa to page</p>

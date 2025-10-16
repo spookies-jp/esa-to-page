@@ -1,5 +1,4 @@
 import { EsaPost } from '@/types/esa';
-import { PublishedArticle } from '@/types/article';
 
 const CACHE_TTL = 24 * 60 * 60; // 24 hours in seconds
 const ARTICLE_LIST_CACHE_TTL = 60 * 60; // 1 hour for article list

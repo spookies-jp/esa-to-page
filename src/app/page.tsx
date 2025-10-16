@@ -3,8 +3,7 @@ import { getAllArticles } from '@/lib/db';
 import {
   getCachedArticleMetadata,
   getCachedArticleList,
-  setCachedArticleList,
-  type ArticleListItem
+  setCachedArticleList
 } from '@/lib/cache';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';

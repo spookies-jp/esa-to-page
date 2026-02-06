@@ -1,10 +1,58 @@
 import { cache } from 'react';
 import { notFound } from 'next/navigation';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
-import { getArticleBySlug } from '@/lib/db';
+import { getArticleBySlug, getArticleByWorkspaceAndPostId } from '@/lib/db';
 import { getCachedArticle, setCachedArticle, setCachedArticleMetadata, getCachedArticleMetadata } from '@/lib/cache';
 import { createEsaApiClient } from '@/lib/esa-api';
 import ArticleRenderer from '@/components/ArticleRenderer';
+
+const ESA_POST_URL_REGEX = /https?:\/\/([^.\/]+)\.esa\.io\/posts\/(\d+)([^\s"'<>]*)?/g;
+
+const rewriteEsaLinksToPublishedSlug = async (
+  html: string,
+  db: D1Database
+): Promise<string> => {
+  const matches = Array.from(html.matchAll(ESA_POST_URL_REGEX));
+  if (matches.length === 0) return html;
+
+  const uniqueKeys = new Map<string, { workspace: string; postId: number }>();
+  matches.forEach((match) => {
+    const workspace = match[1];
+    const postId = Number(match[2]);
+    if (!workspace || Number.isNaN(postId)) return;
+    const key = `${workspace}:${postId}`;
+    if (!uniqueKeys.has(key)) {
+      uniqueKeys.set(key, { workspace, postId });
+    }
+  });
+
+  const entries = await Promise.all(
+    Array.from(uniqueKeys.values()).map(async ({ workspace, postId }) => {
+      const article = await getArticleByWorkspaceAndPostId(db, workspace, postId);
+      return article ? [`${workspace}:${postId}`, article.slug] as const : null;
+    })
+  );
+
+  const slugMap = new Map<string, string>();
+  entries.forEach((entry) => {
+    if (entry) slugMap.set(entry[0], entry[1]);
+  });
+
+  if (slugMap.size === 0) return html;
+
+  return html.replace(ESA_POST_URL_REGEX, (fullMatch, workspace, postId) => {
+    const key = `${workspace}:${postId}`;
+    const slug = slugMap.get(key);
+    if (!slug) return fullMatch;
+
+    try {
+      const url = new URL(fullMatch);
+      return `/${slug}${url.search}${url.hash}`;
+    } catch {
+      return `/${slug}`;
+    }
+  });
+};
 
 const getArticleData = cache(async (slug: string) => {
   const { env } = await getCloudflareContext({ async: true });
@@ -19,9 +67,13 @@ const getArticleData = cache(async (slug: string) => {
   if (esaPost) {
     // Article content cache hit - no DB access needed!
     // Return with minimal article object (only used for existence check)
+    const rewrittenHtml = await rewriteEsaLinksToPublishedSlug(esaPost.body_html, env.DB);
     return {
         article: { slug, esa_post_id: 0, workspace: '', esa_url: '', id: 0, created_at: '', updated_at: '' },
-        esaPost,
+        esaPost: {
+          ...esaPost,
+          body_html: rewrittenHtml
+        },
     };
   }
 
@@ -54,6 +106,12 @@ const getArticleData = cache(async (slug: string) => {
         userIcon: esaPost.user?.icon,
       });
 
+      const rewrittenHtml = await rewriteEsaLinksToPublishedSlug(esaPost.body_html, env.DB);
+      esaPost = {
+        ...esaPost,
+        body_html: rewrittenHtml
+      };
+
       await setCachedArticle(env.KV, slug, esaPost);
       await setCachedArticleMetadata(env.KV, slug, esaPost, article.workspace, article.esa_post_id);
     } catch (error) {
@@ -67,9 +125,13 @@ const getArticleData = cache(async (slug: string) => {
     }
   }
 
+  const rewrittenHtml = await rewriteEsaLinksToPublishedSlug(esaPost.body_html, env.DB);
   return {
     article,
-    esaPost,
+    esaPost: {
+      ...esaPost,
+      body_html: rewrittenHtml
+    },
   };
 });
 

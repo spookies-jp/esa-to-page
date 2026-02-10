@@ -40,6 +40,7 @@
     "dev": "next dev",
     "lint": "next lint",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "upload": "opennextjs-cloudflare build && opennextjs-cloudflare upload",
     "start": "next start"
   }
 }

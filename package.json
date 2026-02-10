@@ -20,7 +20,6 @@
     "react-dom": "19.0.0"
   },
   "devDependencies": {
-    "@eslint/eslintrc": "3",
     "@tailwindcss/postcss": "4.1.4",
     "@types/node": "24.0.4",
     "@types/react": "19.0.10",
@@ -38,7 +37,7 @@
     "check": "npm run build && tsc",
     "deploy": "opennextjs-cloudflare build && wrangler d1 execute esa-to-page --file=./schema.sql && opennextjs-cloudflare deploy",
     "dev": "next dev",
-    "lint": "next lint",
+    "lint": "eslint .",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "upload": "opennextjs-cloudflare build && opennextjs-cloudflare upload",
     "start": "next start"

@@ -1,10 +1,68 @@
 import { cache } from 'react';
 import { notFound } from 'next/navigation';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
-import { getArticleBySlug } from '@/lib/db';
+import { getArticleBySlug, getArticleByWorkspaceAndPostId } from '@/lib/db';
 import { getCachedArticle, setCachedArticle, setCachedArticleMetadata, getCachedArticleMetadata } from '@/lib/cache';
 import { createEsaApiClient } from '@/lib/esa-api';
 import ArticleRenderer from '@/components/ArticleRenderer';
+
+// httpsのみに統一し、未使用キャプチャグループを削除
+const ESA_POST_URL_PATTERN = 'https://([^.\\/]+)\\.esa\\.io/posts/(\\d+)';
+
+const rewriteEsaLinksToPublishedSlug = async (
+  html: string,
+  db: D1Database
+): Promise<string> => {
+  // 毎回新しいRegExpインスタンスを作成（gフラグの状態保持問題を回避）
+  const regex = new RegExp(ESA_POST_URL_PATTERN, 'g');
+  const matches = Array.from(html.matchAll(regex));
+  if (matches.length === 0) return html;
+
+  const uniqueKeys = new Map<string, { workspace: string; postId: number }>();
+  matches.forEach((match) => {
+    const workspace = match[1];
+    const postId = Number(match[2]);
+    if (!workspace || Number.isNaN(postId)) return;
+
+    // workspaceパラメータの入力検証（英数字とハイフンのみ許可）
+    if (!/^[a-zA-Z0-9-]+$/.test(workspace)) return;
+
+    const key = `${workspace}:${postId}`;
+    if (!uniqueKeys.has(key)) {
+      uniqueKeys.set(key, { workspace, postId });
+    }
+  });
+
+  const entries = await Promise.all(
+    Array.from(uniqueKeys.values()).map(async ({ workspace, postId }) => {
+      const article = await getArticleByWorkspaceAndPostId(db, workspace, postId);
+      return article ? [`${workspace}:${postId}`, article.slug] as const : null;
+    })
+  );
+
+  const slugMap = new Map<string, string>();
+  entries.forEach((entry) => {
+    if (entry) slugMap.set(entry[0], entry[1]);
+  });
+
+  if (slugMap.size === 0) return html;
+
+  // ESA post subpathsを保持（files/等のパスを壊さない）
+  return html.replace(regex, (fullMatch, workspace, postId) => {
+    const key = `${workspace}:${postId}`;
+    const slug = slugMap.get(key);
+    if (!slug) return fullMatch;
+
+    try {
+      const url = new URL(fullMatch);
+      // pathname全体を保持（/posts/123/files/456 等）
+      const pathname = url.pathname.replace(`/posts/${postId}`, `/${slug}`);
+      return `${pathname}${url.search}${url.hash}`;
+    } catch {
+      return `/${slug}`;
+    }
+  });
+};
 
 const getArticleData = cache(async (slug: string) => {
   const { env } = await getCloudflareContext({ async: true });
@@ -17,11 +75,14 @@ const getArticleData = cache(async (slug: string) => {
   let esaPost = await getCachedArticle(env.KV, slug);
 
   if (esaPost) {
-    // Article content cache hit - no DB access needed!
-    // Return with minimal article object (only used for existence check)
+    // Article content cache hit - apply link rewriting at read time
+    const rewrittenHtml = await rewriteEsaLinksToPublishedSlug(esaPost.body_html, env.DB);
     return {
         article: { slug, esa_post_id: 0, workspace: '', esa_url: '', id: 0, created_at: '', updated_at: '' },
-        esaPost,
+        esaPost: {
+          ...esaPost,
+          body_html: rewrittenHtml
+        },
     };
   }
 
@@ -35,42 +96,41 @@ const getArticleData = cache(async (slug: string) => {
     };
   }
 
-  // Try to get article content from cache (in case we only missed metadata)
-  if (!esaPost) {
-    esaPost = await getCachedArticle(env.KV, slug);
-  }
+  // Fetch from esa API
+  try {
+    const client = createEsaApiClient(env.ESA_ACCESS_TOKEN, article.workspace);
+    esaPost = await client.getPost(article.esa_post_id);
 
-  if (!esaPost) {
-    // Fetch from esa API
-    try {
-      const client = createEsaApiClient(env.ESA_ACCESS_TOKEN, article.workspace);
-      esaPost = await client.getPost(article.esa_post_id);
+    // Log the fetched data for debugging
+    console.log('Fetched esa post:', {
+      number: esaPost.number,
+      name: esaPost.name,
+      hasUser: !!esaPost.user,
+      userIcon: esaPost.user?.icon,
+    });
 
-      // Log the fetched data for debugging
-      console.log('Fetched esa post:', {
-        number: esaPost.number,
-        name: esaPost.name,
-        hasUser: !!esaPost.user,
-        userIcon: esaPost.user?.icon,
-      });
+    // Save original HTML to cache (without link rewriting)
+    await setCachedArticle(env.KV, slug, esaPost);
+    await setCachedArticleMetadata(env.KV, slug, esaPost, article.workspace, article.esa_post_id);
 
-      await setCachedArticle(env.KV, slug, esaPost);
-      await setCachedArticleMetadata(env.KV, slug, esaPost, article.workspace, article.esa_post_id);
-    } catch (error) {
-      if (error instanceof Error && error.message === 'Resource not found') {
-        return {
-          article,
-          esaPost: null,
-        };
-      }
-      throw error;
+    // Apply link rewriting at read time
+    const rewrittenHtml = await rewriteEsaLinksToPublishedSlug(esaPost.body_html, env.DB);
+    return {
+      article,
+      esaPost: {
+        ...esaPost,
+        body_html: rewrittenHtml
+      },
+    };
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Resource not found') {
+      return {
+        article,
+        esaPost: null,
+      };
     }
+    throw error;
   }
-
-  return {
-    article,
-    esaPost,
-  };
 });
 
 // Cloudflare Workers requires force-dynamic for edge runtime

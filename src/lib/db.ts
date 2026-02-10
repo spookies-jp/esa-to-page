@@ -35,6 +35,19 @@ export async function getArticleById(
   return result;
 }
 
+export async function getArticleByWorkspaceAndPostId(
+  db: D1Database,
+  workspace: string,
+  postId: number
+): Promise<PublishedArticle | null> {
+  const result = await db
+    .prepare('SELECT * FROM published_articles WHERE workspace = ? AND esa_post_id = ?')
+    .bind(workspace, postId)
+    .first<PublishedArticle>();
+
+  return result;
+}
+
 export async function getAllArticles(
   db: D1Database
 ): Promise<PublishedArticle[]> {

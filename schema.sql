@@ -10,3 +10,4 @@ CREATE TABLE IF NOT EXISTS published_articles (
 
 CREATE INDEX IF NOT EXISTS idx_slug ON published_articles(slug);
 CREATE INDEX IF NOT EXISTS idx_esa_post_id ON published_articles(esa_post_id);
+CREATE INDEX IF NOT EXISTS idx_workspace_esa_post_id ON published_articles(workspace, esa_post_id);
